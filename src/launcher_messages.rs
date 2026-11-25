@@ -194,6 +194,60 @@ impl Launcher {
 mod tests {
     use super::*;
 
+    /// Every `Msg` variant named in `backend/messages.rs` goes to exactly one arm of [`Launcher::drain`].
+    /// The match is exhaustive, so a missing variant is a compile error; this guards against a
+    /// variant being routed twice (a later arm would be unreachable) while the list stays readable.
+    #[test]
+    fn every_backend_message_has_exactly_one_route() {
+        let declaration = include_str!("backend/messages.rs");
+        let body = declaration
+            .split_once("pub enum Msg {")
+            .expect("the Msg enum")
+            .1;
+        let variants: Vec<&str> = body
+            .lines()
+            .take_while(|line| !line.starts_with('}'))
+            .filter_map(|line| {
+                let line = line.strip_prefix("    ")?;
+                let name = line
+                    .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .next()?;
+                (!name.is_empty() && name.chars().next().is_some_and(|c| c.is_ascii_uppercase()))
+                    .then_some(name)
+            })
+            .collect();
+        assert!(variants.len() > 30, "{variants:?}");
+
+        let dispatch = include_str!("launcher_messages.rs");
+        let arms = dispatch
+            .split_once("while let Ok(msg) = self.rx.try_recv()")
+            .expect("the drain loop")
+            .1
+            .split_once("changed |= self.servers_tick()")
+            .expect("the end of the message match")
+            .0;
+        let count = |name: &str| {
+            let needle = format!("Msg::{name}");
+            arms.match_indices(&needle)
+                .filter(|(at, _)| {
+                    arms[at + needle.len()..]
+                        .chars()
+                        .next()
+                        .is_none_or(|c| !(c.is_ascii_alphanumeric() || c == '_'))
+                })
+                .count()
+        };
+        let wrong: Vec<(&str, usize)> = variants
+            .iter()
+            .map(|name| (*name, count(name)))
+            .filter(|(_, n)| *n != 1)
+            .collect();
+        assert!(
+            wrong.is_empty(),
+            "these Msg variants are not routed once: {wrong:?}"
+        );
+    }
+
     #[test]
     fn a_managed_play_build_failure_disarms_the_update_but_a_cancellation_does_not() {
         let native = StartError::Native(native_mods::Failed::Other("compiler failed".into()), None);
