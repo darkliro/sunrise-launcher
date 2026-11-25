@@ -8,16 +8,33 @@ fn muted(text: &str) -> Div {
         .child(text.to_owned())
 }
 
+/// The icon, heading and description of a source choice's card.
+///
+/// Pure so the sheet's copy is testable without a window; the English strings are lookup keys
+/// for the language catalogs.
+fn source_copy(kind: SourceChoice) -> (&'static str, &'static str, &'static str) {
+    match kind {
+        SourceChoice::Repository => (
+            "folder",
+            "Repository (local folder or link)",
+            "Build a mod from a GitHub link or a folder on this computer. Marked From source.",
+        ),
+        SourceChoice::LocalFile => (
+            "package",
+            "Local .smod file",
+            "Install a .smod package file already saved on this computer. Marked Local.",
+        ),
+    }
+}
+
 fn source_option_card(
     choice: SourceChoice,
     id: &'static str,
     kind: SourceChoice,
-    icon: &'static str,
-    heading: &'static str,
-    desc: &'static str,
     cx: &mut Context<Launcher>,
 ) -> Stateful<Div> {
     let selected = choice == kind;
+    let (icon, heading, desc) = source_copy(kind);
     let accent = Hsla::from(rgb(palette().accent_ink));
     let rest_border = Hsla::from(rgb(palette().line));
     let hover_border = Hsla::from(rgb(palette().muted));
@@ -157,18 +174,12 @@ impl Launcher {
                 choice,
                 "add-source-opt-repo",
                 SourceChoice::Repository,
-                "folder",
-                "Repository (local folder or link)",
-                "Build a mod from a GitHub link or a folder on this computer. Marked From source.",
                 cx,
             ))
             .child(source_option_card(
                 choice,
                 "add-source-opt-local",
                 SourceChoice::LocalFile,
-                "package",
-                "Local .smod file",
-                "Install a .smod package file already saved on this computer. Marked Local.",
                 cx,
             ));
         let warn_color = Hsla::from(rgb(palette().warning));
@@ -673,5 +684,24 @@ impl Launcher {
                 )
                 .child(action),
         )
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_source_choice_has_its_own_icon_and_copy() {
+        let (repo_icon, repo_heading, repo_desc) = source_copy(SourceChoice::Repository);
+        let (local_icon, local_heading, local_desc) = source_copy(SourceChoice::LocalFile);
+        assert_eq!(repo_icon, "folder");
+        assert_eq!(local_icon, "package");
+        assert_eq!(repo_heading, "Repository (local folder or link)");
+        assert_eq!(local_heading, "Local .smod file");
+        assert!(repo_desc.contains("Marked From source."));
+        assert!(local_desc.contains("Marked Local."));
+        assert_ne!(repo_heading, local_heading);
+        assert_ne!(repo_desc, local_desc);
     }
 }
