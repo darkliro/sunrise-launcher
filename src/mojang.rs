@@ -8,6 +8,7 @@
 //! stopped half way (cancelled, no network) keeps the files it finished: the next one fetches
 //! only the rest.
 
+use crate::backend::lock::recover;
 use crate::sources::{fetch_checked, fetch_manifest, sha1_file, sha1_hex, write_file, Fetch, Pins};
 use serde_json::Value;
 use std::fs;
@@ -394,11 +395,11 @@ fn fetch_each(
             .map(|_| {
                 scope.spawn(|| {
                     while let Some(file) = files.get(next.fetch_add(1, Relaxed)) {
-                        if stop_on_error && failed.lock().unwrap().is_some() {
+                        if stop_on_error && recover(&failed).is_some() {
                             break;
                         }
                         if cancel.load(Relaxed) {
-                            failed.lock().unwrap().get_or_insert(CANCELLED.to_string());
+                            recover(&failed).get_or_insert(CANCELLED.to_string());
                             break;
                         }
                         if sha1_file(&file.path).as_ref() != Some(&file.sha1) {
@@ -407,7 +408,7 @@ fn fetch_each(
                                 .and_then(|body| write_file(&file.path, &body));
                             if let Err(e) = got {
                                 errors.fetch_add(1, Relaxed);
-                                failed.lock().unwrap().get_or_insert(e);
+                                recover(&failed).get_or_insert(e);
                             }
                         }
                         DONE.store(done.fetch_add(1, Relaxed) + 1, Relaxed);

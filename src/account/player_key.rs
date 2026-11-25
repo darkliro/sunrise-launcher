@@ -3,6 +3,7 @@
 //! with it, so the registry learns who rated from Mojang's signature and never sees a token.
 //! The key lives in memory only, as the game keeps it (`AccountProfileKeyPairManager`).
 use super::{bearer, request_to, send, str_field, Endpoints};
+use crate::backend::lock::recover;
 use base64::{engine::general_purpose::STANDARD, Engine};
 use serde_json::{json, Value};
 use std::sync::{Arc, Mutex};
@@ -200,7 +201,7 @@ pub fn current(account: &str) -> Result<Arc<PlayerKey>, String> {
         (Err(_), Some((key, _))) if !key.expired(now_ms()) => key,
         (Err(why), _) => return Err(why),
     };
-    *HELD.lock().unwrap() = Some((key.clone(), Instant::now()));
+    *recover(&HELD) = Some((key.clone(), Instant::now()));
     Ok(key)
 }
 

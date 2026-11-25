@@ -1,5 +1,6 @@
 //! A sign-in on its own thread, from the device code to the saved account.
 use super::*;
+use crate::backend::lock::recover;
 
 /// Called under the account-operation lock, after the final profile is known. Rejected or
 /// cancelled sign-ins must not save a credential, add another identity, or change selection.
@@ -67,7 +68,7 @@ impl SignIn {
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let (thread_state, thread_cancel) = (state.clone(), cancel.clone());
         std::thread::spawn(move || {
-            let set = |s| *thread_state.lock().unwrap() = s;
+            let set = |s| *recover(&thread_state) = s;
             let result = (|| {
                 let ep = Endpoints::live();
                 let client_id = client_id().ok_or(NOT_CONFIGURED)?;
@@ -100,7 +101,7 @@ impl SignIn {
         Self { state, cancel }
     }
     pub fn state(&self) -> SignInState {
-        self.state.lock().unwrap().clone()
+        recover(&self.state).clone()
     }
     pub fn cancel(&self) {
         self.cancel

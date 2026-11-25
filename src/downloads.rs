@@ -18,6 +18,7 @@
 //!
 //! Redirect targets must use HTTPS. Retry-After delays are capped at 60 seconds. Each destination
 //! directory is swept once before use for generated partials whose owning process has exited.
+use crate::backend::lock::recover;
 use crate::hashing::Sha1;
 use futures_util::{stream, StreamExt};
 use reqwest::{header, Client, Response, StatusCode, Url};
@@ -248,7 +249,7 @@ impl Downloader {
             counters: Counters::default(),
             started: Instant::now(),
         });
-        *VISIBLE.lock().unwrap() = Some(Arc::downgrade(&metrics));
+        *recover(&VISIBLE) = Some(Arc::downgrade(&metrics));
         self.with_metrics(metrics)
     }
     fn with_metrics(&self, metrics: Arc<Metrics>) -> Self {
@@ -266,7 +267,7 @@ impl Downloader {
     /// A pool is tied to its route. Changing Settings must never reuse an old proxy tunnel.
     fn client_for_proxy(&self, proxy: Option<String>) -> Result<Client, Failure> {
         {
-            let clients = self.clients.lock().unwrap();
+            let clients = recover(&self.clients);
             match &proxy {
                 None => return Ok(clients.direct.clone()),
                 Some(spec) => {
@@ -279,7 +280,7 @@ impl Downloader {
             }
         }
         let client = build_client(&self.config, proxy.as_deref())?;
-        let mut clients = self.clients.lock().unwrap();
+        let mut clients = recover(&self.clients);
         if let Some((spec, kept)) = &clients.proxy {
             if Some(spec) == proxy.as_ref() {
                 return Ok(kept.clone());
@@ -301,7 +302,7 @@ impl Downloader {
                 .ok_or_else(|| Failure::permanent("URL has no host"))?
                 .to_owned();
             let budget = {
-                let mut hosts = self.hosts.lock().unwrap();
+                let mut hosts = recover(&self.hosts);
                 hosts
                     .entry(host)
                     .or_insert_with(|| Arc::new(Semaphore::new(self.config.per_host)))
@@ -660,7 +661,7 @@ impl Downloader {
                 return Err(Failure::permanent("Artifact requires a 40-character SHA-1"));
             }
             let lock = {
-                let mut paths = self.paths.lock().unwrap();
+                let mut paths = recover(&self.paths);
                 match paths.get(&artifact.path).and_then(Weak::upgrade) {
                     Some(lock) => lock,
                     None => {
@@ -719,7 +720,7 @@ impl Downloader {
             Relaxed,
         );
         {
-            let mut paths = self.paths.lock().unwrap();
+            let mut paths = recover(&self.paths);
             if paths
                 .get(&artifact.path)
                 .is_some_and(|p| p.strong_count() == 0)
@@ -1025,7 +1026,7 @@ pub fn get_bytes(url: &str) -> Result<Vec<u8>, String> {
 }
 pub fn install_metadata(url: &str) -> Result<Vec<u8>, String> {
     let engine = shared()?;
-    let metrics = VISIBLE.lock().unwrap().as_ref().and_then(Weak::upgrade);
+    let metrics = recover(&VISIBLE).as_ref().and_then(Weak::upgrade);
     match metrics {
         Some(metrics) => run(engine
             .with_metrics(metrics)
@@ -1059,7 +1060,7 @@ fn build_client(config: &Config, proxy: Option<&str>) -> Result<Client, Failure>
 }
 
 pub fn current_progress() -> Option<Progress> {
-    let metrics = VISIBLE.lock().unwrap().as_ref()?.upgrade()?;
+    let metrics = recover(&VISIBLE).as_ref()?.upgrade()?;
     let p = progress_of(&metrics);
     (p.active + p.pending > 0).then_some(p)
 }

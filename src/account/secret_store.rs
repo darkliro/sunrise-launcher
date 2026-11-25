@@ -1,6 +1,7 @@
 //! Where secrets live: the SecretStore trait, the memory and time-bounded stores, the layered
 //! keychain-then-file store, and which one this process uses.
 use super::*;
+use crate::backend::lock::recover;
 
 /// Where secrets are kept: the OS keychain, a file of the launcher's own when there is none, or
 /// memory in tests.
@@ -26,14 +27,14 @@ pub trait SecretStore: Send + Sync {
 pub struct MemoryStore(Mutex<HashMap<String, String>>, Mutex<()>);
 impl SecretStore for MemoryStore {
     fn get(&self, key: &str) -> Result<Option<String>, String> {
-        Ok(self.0.lock().unwrap().get(key).cloned())
+        Ok(recover(&self.0).get(key).cloned())
     }
     fn set(&self, key: &str, secret: &str) -> Result<(), String> {
-        self.0.lock().unwrap().insert(key.into(), secret.into());
+        recover(&self.0).insert(key.into(), secret.into());
         Ok(())
     }
     fn delete(&self, key: &str) -> Result<(), String> {
-        self.0.lock().unwrap().remove(key);
+        recover(&self.0).remove(key);
         Ok(())
     }
     fn persistent(&self) -> bool {
@@ -223,7 +224,7 @@ impl Layered {
             .collect();
         // Seen before the hand-over starts: whatever another process hands over meanwhile, this
         // run asks the keychain for it again.
-        layered.parked.lock().unwrap().extend(keys.iter().cloned());
+        recover(&layered.parked).extend(keys.iter().cloned());
         for key in keys {
             let handed = layered.keychain_writes(|| {
                 let Some(secret) = layered.file.entry(&key)? else {
@@ -269,7 +270,7 @@ impl Layered {
     /// Puts `value` in the file for `key`, the keychain being away.
     fn park(&self, key: &str, value: &str) -> Result<(), String> {
         self.file.put(key, value)?;
-        self.parked.lock().unwrap().insert(key.into());
+        recover(&self.parked).insert(key.into());
         Ok(())
     }
 
@@ -278,7 +279,7 @@ impl Layered {
     /// noticed.
     fn unpark(&self, key: &str, before: Option<String>) -> Result<(), String> {
         let still_there = self.file.settle(key, before.as_deref())?;
-        let mut parked = self.parked.lock().unwrap();
+        let mut parked = recover(&self.parked);
         if still_there {
             parked.insert(key.into());
         } else {
@@ -293,14 +294,14 @@ impl SecretStore for Layered {
         match self.file.entry(key)? {
             Some(secret) if secret == SIGNED_OUT => return Ok(None),
             Some(secret) => {
-                self.parked.lock().unwrap().insert(key.into());
+                recover(&self.parked).insert(key.into());
                 return Ok(Some(secret));
             }
             None => {}
         }
         // Seen in the file and gone from it: another process handed it to the keychain, which
         // answers again.
-        if self.is_away() && self.parked.lock().unwrap().remove(key) {
+        if self.is_away() && recover(&self.parked).remove(key) {
             self.away.store(false, std::sync::atomic::Ordering::Relaxed);
         }
         self.ask(|keychain| keychain.get(key))
@@ -410,4 +411,23 @@ pub fn in_secrets_file() -> bool {
     cfg!(any(target_os = "linux", target_os = "freebsd"))
         && store().persistent()
         && FileStore::launcher().holds_secrets()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A panic while the store's map is held poisons its lock; reading and writing must still work.
+    #[test]
+    fn a_poisoned_memory_store_still_answers() {
+        let store = std::sync::Arc::new(MemoryStore::default());
+        let poisoned = store.clone();
+        let _ = std::thread::spawn(move || {
+            let _held = poisoned.0.lock().unwrap();
+            panic!("poison the memory store's lock on purpose");
+        })
+        .join();
+        assert_eq!(store.set("key", "secret"), Ok(()));
+        assert_eq!(store.get("key"), Ok(Some("secret".into())));
+    }
 }

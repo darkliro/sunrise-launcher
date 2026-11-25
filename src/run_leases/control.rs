@@ -1,4 +1,5 @@
 //! GUI process-group control and startup lifetime registration.
+use crate::backend::lock::recover;
 use crate::backend::{self, Running};
 use std::io::Write;
 
@@ -10,7 +11,7 @@ impl Running {
         }
     }
     pub fn kill(&self) {
-        let mut child = self.child.lock().unwrap();
+        let mut child = recover(&self.child);
         #[cfg(unix)]
         {
             if child.is_relayed() {

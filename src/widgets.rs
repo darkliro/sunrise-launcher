@@ -1,5 +1,6 @@
 //! The blocky look's building blocks and the hover tracking every look shares.
 use super::*;
+use sunrise_launcher::backend::lock::recover;
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) enum Kind {
@@ -73,7 +74,7 @@ pub(crate) fn track_hover(el: Stateful<Div>, id: SharedString) -> Stateful<Div> 
 
 /// Whether `id` is the element [`hover_fade`] shows hovered now.
 pub(crate) fn hover_is(id: &SharedString) -> bool {
-    HOVER.lock().unwrap().lit.as_ref() == Some(id)
+    recover(&HOVER).lit.as_ref() == Some(id)
 }
 
 /// Records that `id` is now hovered or not, for [`hover_fade`], and redraws the view it is in:
@@ -85,7 +86,7 @@ pub(crate) fn note_hover(
     window: &mut Window,
     cx: &mut App,
 ) {
-    let mut state = HOVER.lock().unwrap();
+    let mut state = recover(&HOVER);
     let now = Instant::now();
     let is_lit = state.lit.as_ref() == Some(id);
     if hovered && !is_lit {
@@ -118,12 +119,12 @@ pub(crate) fn press(
     pressed: impl FnOnce(Stateful<Div>) -> Stateful<Div>,
 ) -> Stateful<Div> {
     let owner = Owner::default();
-    let held = PRESSED.lock().unwrap().contains(id);
+    let held = recover(&PRESSED).contains(id);
     let (down, up, out) = (id.clone(), owner.clone(), owner.clone());
     let el = el
         .child(owner.noting())
         .on_mouse_down(gpui::MouseButton::Left, move |_, window, cx| {
-            PRESSED.lock().unwrap().push(down.clone());
+            recover(&PRESSED).push(down.clone());
             owner.redraw(window, cx);
         })
         .on_mouse_up(gpui::MouseButton::Left, move |_, window, cx| {
@@ -140,7 +141,7 @@ pub(crate) fn press(
 }
 
 fn release(owner: &Owner, window: &mut Window, cx: &mut App) {
-    let mut pressed = PRESSED.lock().unwrap();
+    let mut pressed = recover(&PRESSED);
     if !pressed.is_empty() {
         pressed.clear();
         drop(pressed);
@@ -150,7 +151,7 @@ fn release(owner: &Owner, window: &mut Window, cx: &mut App) {
 
 /// `id`'s fade as `motion` plays it, while there is something to draw.
 fn hover_now(id: &SharedString, motion: sunrise_launcher_theme::Motion) -> Option<motion::Fade> {
-    let mut state = HOVER.lock().unwrap();
+    let mut state = recover(&HOVER);
     let (_, fade) = state.fades.iter_mut().find(|(f, _)| f == id)?;
     fade.motion = motion;
     let fade = *fade;
@@ -548,5 +549,16 @@ mod tests {
         );
         assert_eq!(copied("error: one\n  two\n\nthree\n"), Copied::Lines(4));
         assert_eq!(copied("\nerror\n\n"), Copied::Lines(3));
+    }
+
+    /// A panic while the hover state is held poisons its lock; the next hover must still answer.
+    #[test]
+    fn a_poisoned_hover_lock_still_answers() {
+        let _ = std::thread::spawn(|| {
+            let _held = HOVER.lock().unwrap();
+            panic!("poison the hover lock on purpose");
+        })
+        .join();
+        assert!(!hover_is(&SharedString::from("poison-test")));
     }
 }

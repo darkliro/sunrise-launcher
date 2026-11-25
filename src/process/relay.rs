@@ -5,6 +5,7 @@ use super::{
     relay_lifetime::{self, RelayedGame},
     relay_wrapper::Wrapper,
 };
+use crate::backend::lock::recover;
 use crate::managed_play::StartError;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -111,7 +112,7 @@ impl Token {
         }
     }
     fn revoke(&self) {
-        let mut state = self.state.lock().unwrap();
+        let mut state = recover(&self.state);
         if *state == Grant::Pending {
             *state = Grant::Revoked;
             self.revoked.store(true, Ordering::Release);
@@ -122,7 +123,7 @@ impl Token {
         deadline: Instant,
         transfer: impl FnOnce() -> io::Result<T>,
     ) -> io::Result<T> {
-        let mut state = self.state.lock().unwrap();
+        let mut state = recover(&self.state);
         if *state != Grant::Pending {
             return Err(io::ErrorKind::PermissionDenied.into());
         }
@@ -218,7 +219,7 @@ pub(crate) fn start(
             .name("wrapper-leader".into())
             .spawn_scoped(scope, || {
                 while !done.load(Ordering::Acquire) && Instant::now() < deadline {
-                    let exited = wrapper.lock().unwrap().leader_exited();
+                    let exited = recover(&wrapper).leader_exited();
                     if !matches!(exited, Ok(false)) {
                         token.revoke();
                         return;
@@ -240,7 +241,7 @@ pub(crate) fn start(
                 Some(token.revoked.clone()),
             )?
             .send(&offer)?;
-            if wrapper.lock().unwrap().leader_exited()? {
+            if recover(&wrapper).leader_exited()? {
                 token.revoke();
             }
             let channel = token.handout(deadline, || {

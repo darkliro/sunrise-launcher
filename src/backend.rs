@@ -1,6 +1,7 @@
 //! Everything that is not UI: GitHub, installs, resource preparation, the game's processes and
 //! updates. The GUI, the CLI and the MCP server all go through this module. Functions here
 //! block; the GUI runs them on threads and reads their messages.
+use crate::backend::lock::recover;
 use crate::process::child::Child;
 use crate::{account, managed_play::Resources, mojang, sources};
 use std::fs;
@@ -56,6 +57,7 @@ pub struct Release {
 }
 
 mod location;
+pub mod lock;
 mod look_settings;
 mod play_log;
 mod release_assets;
@@ -3703,14 +3705,14 @@ impl Logged {
             for msg in rx {
                 match msg {
                     Msg::Line(_, line) => {
-                        let mut log = l.lock().unwrap();
+                        let mut log = recover(&l);
                         log.push_back(line);
                         if log.len() > LOG_KEEP {
                             log.pop_front();
                         }
                     }
-                    Msg::Exit(_, result) => *e.lock().unwrap() = Some(result),
-                    Msg::ClientObservationLost(error) => *e.lock().unwrap() = Some(Err(error)),
+                    Msg::Exit(_, result) => *recover(&e) = Some(result),
+                    Msg::ClientObservationLost(error) => *recover(&e) = Some(Err(error)),
                     _ => {}
                 }
             }
@@ -3719,11 +3721,11 @@ impl Logged {
     }
 
     pub fn finished(&self) -> Option<Result<(), String>> {
-        self.exit.lock().unwrap().clone()
+        recover(&self.exit).clone()
     }
 
     pub fn tail(&self, lines: usize) -> Vec<String> {
-        let log = self.log.lock().unwrap();
+        let log = recover(&self.log);
         log.iter()
             .skip(log.len().saturating_sub(lines))
             .cloned()
@@ -4885,7 +4887,7 @@ fn monitor(
         let reader_live = reader_live.clone();
         readers.push(std::thread::spawn(move || {
             for line in BufReader::new(stream).lines().map_while(Result::ok) {
-                let live = forwarding.lock().unwrap();
+                let live = recover(&forwarding);
                 if !*live || tx.send(Msg::Line(job, line)).is_err() {
                     break;
                 }
@@ -4905,7 +4907,7 @@ fn monitor(
         }
         // Wrapper output can stay open after the game itself has exited.
         let status = loop {
-            if let Some(s) = waited.lock().unwrap().try_wait().transpose() {
+            if let Some(s) = recover(&waited).try_wait().transpose() {
                 break s;
             }
             std::thread::sleep(std::time::Duration::from_millis(100));
@@ -4915,7 +4917,7 @@ fn monitor(
             // the log, but don't wait for the wrapper or its descendants to close a pipe.
             let _ = readers_done.recv_timeout(std::time::Duration::from_millis(200));
         }
-        *forwarding.lock().unwrap() = false;
+        *recover(&forwarding) = false;
         if relayed {
             if let Err(error) = status {
                 let _ = tx.send(Msg::ClientObservationLost(

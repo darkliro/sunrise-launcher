@@ -7,6 +7,7 @@ use crate::frame::Reach as _;
 use serde_json::Value;
 use std::collections::{BTreeSet, HashMap};
 use std::path::{Path, PathBuf};
+use sunrise_launcher::backend::lock::recover;
 use sunrise_launcher::heads;
 use sunrise_launcher::servers::{
     self, Applied, Backup, Entry, Fix, NewServer, Problem, Status, World,
@@ -616,7 +617,7 @@ impl Servers {
 
 /// Stops the servers this launcher started, unless they run in the background as a service.
 pub(super) fn stop_on_quit() {
-    for dir in STARTED_HERE.lock().unwrap().drain(..) {
+    for dir in recover(&STARTED_HERE).drain(..) {
         if servers::service_installed(&dir) {
             continue;
         }
@@ -630,7 +631,7 @@ pub(super) fn stop_on_quit() {
 /// new window finds it running, so an update doesn't end anyone's game. It stays up when that new
 /// window closes too, until it is stopped on the Servers page.
 pub(super) fn keep_running_through_update() {
-    STARTED_HERE.lock().unwrap().clear();
+    recover(&STARTED_HERE).clear();
 }
 
 /// The player's own name, to let them in on a friends-only server: the Microsoft account that plays.
@@ -1017,7 +1018,7 @@ impl Launcher {
         let Some(dir) = self.servers.open.clone() else {
             return;
         };
-        STARTED_HERE.lock().unwrap().push(dir.clone());
+        recover(&STARTED_HERE).push(dir.clone());
         if let Some(outcome) = self.servers.settings_outcomes.get_mut(&dir) {
             outcome.restart.clear();
         }

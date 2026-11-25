@@ -11,6 +11,7 @@ use gpui::RenderImage;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
+use sunrise_launcher::backend::lock::recover;
 use sunrise_launcher::browser::{installed, mod_list, sunrise};
 use sunrise_launcher::packs::{self, Kind as PackKind};
 
@@ -50,7 +51,7 @@ enum Thumbnail {
 
 impl PackPicture {
     fn show(self: &Arc<Self>, cx: &mut Context<Launcher>) -> Option<Arc<RenderImage>> {
-        let mut thumbnail = self.thumbnail.lock().unwrap();
+        let mut thumbnail = recover(&self.thumbnail);
         match &*thumbnail {
             Thumbnail::Ready(image) => return image.clone(),
             Thumbnail::Loading => return None,
@@ -66,7 +67,7 @@ impl PackPicture {
             let _ = this.update(cx, |_, cx| {
                 if let Some(requested) = requested.upgrade() {
                     let has_picture = image.is_some();
-                    *requested.thumbnail.lock().unwrap() = Thumbnail::Ready(image);
+                    *recover(&requested.thumbnail) = Thumbnail::Ready(image);
                     if has_picture {
                         cx.notify();
                     }
@@ -406,7 +407,7 @@ impl Inventory {
 fn retire(snapshot: &Snapshot, pictures: &mut crate::picture_cache::Pictures) {
     for item in &snapshot.tabs.resources {
         if let Picture::Pack(art) = &item.picture {
-            if let Thumbnail::Ready(Some(image)) = &*art.thumbnail.lock().unwrap() {
+            if let Thumbnail::Ready(Some(image)) = &*recover(&art.thumbnail) {
                 pictures.retire(image.clone());
             }
         }

@@ -8,6 +8,7 @@ use serde_json::{json, Value};
 use std::time::Duration;
 use std::{cell::RefCell, collections::VecDeque, path::PathBuf};
 use sunrise_launcher::account::{self, Accounts, SignIn, SignInState};
+use sunrise_launcher::backend::lock::recover;
 use sunrise_launcher::backend::{self, Logged};
 use sunrise_launcher::i18n::tr;
 use sunrise_launcher::instances;
@@ -233,10 +234,10 @@ impl Session {
                 let command = arg_str(args, "command").ok_or("command is required")?;
                 let command = console_line(command)?;
                 let server = self.running_server()?;
-                let before = server.log.lock().unwrap().len();
+                let before = recover(&server.log).len();
                 server.running.send(command);
                 std::thread::sleep(Duration::from_millis(700));
-                let log = server.log.lock().unwrap();
+                let log = recover(&server.log);
                 let reply: Vec<_> = log.iter().skip(before.min(log.len())).cloned().collect();
                 Ok(if reply.is_empty() {
                     "(no output yet)".into()

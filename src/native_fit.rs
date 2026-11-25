@@ -2,6 +2,7 @@
 //! mod made for another Sunrise is no surprise at build time. A mod made for another build is
 //! built when everything it uses is unchanged in the instance's build (SDK design §10); the
 //! build tests it, since that needs the mod's own files.
+use crate::backend::lock::recover;
 use crate::i18n::{tr, trf};
 use crate::instances::Instance;
 use crate::{backend, native_mods};
@@ -76,7 +77,7 @@ pub fn plays(instance: &Instance) -> Option<Plays> {
     // Read the build record before consulting the cache so a rebuild's answer follows it.
     let native_revision = native_mods::about(&version).map(|about| about.sunrise);
     let key = (version.clone(), native_revision.clone());
-    let known = cached(PLAYS.lock().unwrap().get_or_insert_default(), &key);
+    let known = cached(recover(&PLAYS).get_or_insert_default(), &key);
     if let Some(plays) = known {
         return plays;
     }
