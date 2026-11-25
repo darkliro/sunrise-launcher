@@ -42,16 +42,6 @@ const OWN: &str = "instances";
 /// moving it there is one rename). Never listed: an instance exists once it is whole.
 const STAGING: &str = ".new-instance";
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Kind {
-    /// The game's home: what every player had before instances.
-    Default,
-    /// Made in the launcher: `instances/<slug>/`.
-    Own,
-    /// A modpack from Sunrise's registry.
-    Pack,
-}
-
 /// The most a picture drawn as artwork (a profile's, a world's, a texture) is read: one a game
 /// or the launcher wrote is far smaller.
 pub const MAX_ARTWORK: u64 = 8 << 20;
@@ -130,7 +120,7 @@ pub fn adopt_icon(home: &Path, url: &str) {
     }
 }
 
-pub use sunrise_launcher_domain::{Channel, Icon, Meta};
+pub use sunrise_launcher_domain::{Channel, Icon, Kind, Meta};
 
 /// The texture's file in prepared resources, if it is a texture they hold. Only a name
 /// [`Icon::parse`] takes is looked for, and only a file that really is inside the resources'
