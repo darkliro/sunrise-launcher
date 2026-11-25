@@ -16,40 +16,11 @@
 //!
 //! Without a pre-launch command the wrapper is the program itself, and no shell runs.
 use crate::backend::split_args;
-use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::ffi::{OsStr, OsString};
 use std::process::Command;
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Launch {
-    /// A shell command run in the instance's folder before the game; the game starts only if it
-    /// succeeds.
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub pre_launch: String,
-    /// A command line the game runs through, such as `nice -n 5` (quotes group a word).
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub wrapper: String,
-    /// A shell command run in the instance's folder after the game exits, whatever its exit.
-    #[serde(default, skip_serializing_if = "String::is_empty")]
-    pub post_exit: String,
-    /// Environment variables for the game (and the two commands above).
-    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub env: BTreeMap<String, String>,
-    /// Linux: run the game through Feral's GameMode (`gamemoderun`), when it is installed.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub gamemode: bool,
-    /// Linux: MangoHud's overlay (`mangohud`), when it is installed.
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub mangohud: bool,
-    /// Linux: the dedicated graphics card of a computer with two (PRIME render offload).
-    #[serde(default, skip_serializing_if = "is_false")]
-    pub dedicated_gpu: bool,
-}
-
-fn is_false(b: &bool) -> bool {
-    !*b
-}
+pub use sunrise_launcher_domain::Launch;
 
 /// The memory slider's stops, in MiB.
 const SLIDER_STEP: u32 = 64;
@@ -227,51 +198,45 @@ pub fn switch_env(launch: &Launch, found: &Found) -> Vec<(&'static str, &'static
     }
 }
 
-impl Launch {
-    pub fn is_empty(&self) -> bool {
-        self == &Launch::default()
+/// What a [`Launch`] does, in one line, or None when nothing.
+pub fn summary(launch: &Launch) -> Option<String> {
+    let mut parts = Vec::new();
+    if !launch.pre_launch.trim().is_empty() {
+        parts.push(crate::i18n::trf(
+            "runs {command} first",
+            &[("command", launch.pre_launch.trim())],
+        ));
     }
-
-    /// What it does, in one line, or None when nothing.
-    pub fn summary(&self) -> Option<String> {
-        let mut parts = Vec::new();
-        if !self.pre_launch.trim().is_empty() {
-            parts.push(crate::i18n::trf(
-                "runs {command} first",
-                &[("command", self.pre_launch.trim())],
-            ));
-        }
-        if !self.wrapper.trim().is_empty() {
-            parts.push(crate::i18n::trf(
-                "through {wrapper}",
-                &[("wrapper", self.wrapper.trim())],
-            ));
-        }
-        if !self.post_exit.trim().is_empty() {
-            parts.push(crate::i18n::trf(
-                "runs {command} after",
-                &[("command", self.post_exit.trim())],
-            ));
-        }
-        if self.gamemode {
-            parts.push(crate::i18n::tr("with GameMode").to_string());
-        }
-        if self.mangohud {
-            parts.push(crate::i18n::tr("with MangoHud").to_string());
-        }
-        if self.dedicated_gpu {
-            parts.push(crate::i18n::tr("on the dedicated GPU").to_string());
-        }
-        match self.env.len() {
-            0 => {}
-            1 => parts.push(crate::i18n::tr("with 1 variable").to_string()),
-            n => parts.push(crate::i18n::trf(
-                "with {count} variables",
-                &[("count", &n.to_string())],
-            )),
-        }
-        (!parts.is_empty()).then(|| parts.join(", "))
+    if !launch.wrapper.trim().is_empty() {
+        parts.push(crate::i18n::trf(
+            "through {wrapper}",
+            &[("wrapper", launch.wrapper.trim())],
+        ));
     }
+    if !launch.post_exit.trim().is_empty() {
+        parts.push(crate::i18n::trf(
+            "runs {command} after",
+            &[("command", launch.post_exit.trim())],
+        ));
+    }
+    if launch.gamemode {
+        parts.push(crate::i18n::tr("with GameMode").to_string());
+    }
+    if launch.mangohud {
+        parts.push(crate::i18n::tr("with MangoHud").to_string());
+    }
+    if launch.dedicated_gpu {
+        parts.push(crate::i18n::tr("on the dedicated GPU").to_string());
+    }
+    match launch.env.len() {
+        0 => {}
+        1 => parts.push(crate::i18n::tr("with 1 variable").to_string()),
+        n => parts.push(crate::i18n::trf(
+            "with {count} variables",
+            &[("count", &n.to_string())],
+        )),
+    }
+    (!parts.is_empty()).then(|| parts.join(", "))
 }
 
 fn valid_key(key: &str) -> bool {

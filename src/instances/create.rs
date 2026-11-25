@@ -234,13 +234,11 @@ pub(super) fn create_with_publish(
         Some(None) if icon.is_file() => fs::remove_file(icon).map_err(create_error)?,
         _ => {}
     }
-    let mut choices = Meta {
-        name: (name != slug).then(|| name.to_string()),
-        icon: from.and_then(|f| f.icon.clone()),
-        group: from.and_then(|f| f.group.clone()),
-        channel: Some(Channel::Stable),
-        ..Meta::default()
-    };
+    let mut choices = Meta::default();
+    choices.name = (name != slug).then(|| name.to_string());
+    choices.icon = from.and_then(|f| f.icon.clone());
+    choices.group = from.and_then(|f| f.group.clone());
+    choices.channel = Some(Channel::Stable);
     choose(&mut choices);
     if let Some(active) = &active {
         choices.version = Some(active.base().to_owned());

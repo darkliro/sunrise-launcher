@@ -62,7 +62,7 @@ impl Launcher {
         let saved = parsed.and_then(|launch| instances::edit(&id, |m| m.launch = launch));
         let saved = saved.map(|i| {
             self.reload_instances();
-            i.launch.summary()
+            launch::summary(&i.launch)
         });
         if let Some(p) = &mut self.launch {
             p.saved = Some(saved);

@@ -161,7 +161,7 @@ fn list_snapshot(
         if store
             .instances
             .get(id)
-            .is_some_and(|meta| meta.build_choice_applied == Some(choice.id))
+            .is_some_and(|meta| meta.reflects_build_choice(choice.id))
         {
             continue;
         }

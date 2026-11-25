@@ -54,31 +54,7 @@ const PREFIX: &str = "native-";
 // A staging change invalidates both installed builds and patched-source snapshots.
 const STAGING: &str = "area-aware-mixins-input-v1";
 
-/// Native mods use the SDK's optimized compilation settings.
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    Default,
-    PartialEq,
-    Eq,
-    serde::Serialize,
-    serde::Deserialize,
-    clap::ValueEnum,
-)]
-#[serde(rename_all = "kebab-case")]
-pub enum Profile {
-    #[default]
-    Optimized,
-}
-impl Profile {
-    pub fn name(self) -> &'static str {
-        "optimized"
-    }
-    fn cargo(self) -> (&'static str, &'static [&'static str]) {
-        ("release", &[])
-    }
-}
+pub use sunrise_launcher_domain::Profile;
 
 /// Where the launcher installs what a [`Target`] builds.
 trait Installed {

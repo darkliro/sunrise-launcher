@@ -5,14 +5,14 @@ pub(super) fn apply_committed_choice(
     meta: &mut Meta,
     choice: &crate::managed_play::CommittedBuildChoice,
 ) -> bool {
-    if meta.build_choice_applied == Some(choice.id) {
+    if meta.reflects_build_choice(choice.id) {
         return false;
     }
     meta.version = choice.version.clone();
     if let Some(channel) = choice.channel {
         meta.channel = Some(channel);
     }
-    meta.build_choice_applied = Some(choice.id);
+    meta.note_build_choice(choice.id);
     true
 }
 

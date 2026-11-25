@@ -431,7 +431,10 @@ fn native_build_export_mode_needs_a_folder_and_refuses_an_instance() {
             version, profile, ..
         }) => {
             assert_eq!(version.as_deref(), Some("v2026.10.13"));
-            assert_eq!(profile, Some(native_mods::Profile::Optimized));
+            assert_eq!(
+                profile.map(native_mods::Profile::from),
+                Some(native_mods::Profile::Optimized)
+            );
         }
         _ => panic!("expected native-build"),
     }

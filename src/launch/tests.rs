@@ -65,7 +65,7 @@ fn a_typed_memory_limit_is_read_in_mb_or_gb_with_no_lowest_value() {
 
 #[test]
 fn a_summary_says_what_runs() {
-    assert_eq!(Launch::default().summary(), None);
+    assert_eq!(summary(&Launch::default()), None);
     let launch = Launch {
         pre_launch: "./sync.sh".into(),
         wrapper: "nice -n 5".into(),
@@ -73,7 +73,7 @@ fn a_summary_says_what_runs() {
         ..Launch::default()
     };
     assert_eq!(
-        launch.summary().unwrap(),
+        summary(&launch).unwrap(),
         "runs ./sync.sh first, through nice -n 5, with 2 variables"
     );
 }
@@ -301,7 +301,7 @@ fn the_linux_switches_act_only_where_their_tools_are() {
     assert!(switch_env(&launch, &none).is_empty());
     assert!(!none.any() && all.any());
     assert_eq!(
-        launch.summary().unwrap(),
+        summary(&launch).unwrap(),
         "through nice, with GameMode, with MangoHud, on the dedicated GPU"
     );
     // Off switches aren't written.
@@ -326,7 +326,7 @@ fn the_post_exit_command_runs_with_the_instance_variables() {
         ..Launch::default()
     };
     assert_eq!(
-        launch.summary().unwrap(),
+        summary(&launch).unwrap(),
         format!("runs {} after, with 1 variable", launch.post_exit)
     );
     let vars = instance_vars("My Pack", "my-pack", &dir);

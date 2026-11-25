@@ -171,7 +171,7 @@ impl Launcher {
             Some(icon @ Icon::Texture(name)) if picture.is_none() => {
                 self.version_of(i).cloned().and_then(|tag| {
                     self.icon_image(format!("texture:{tag}:{name}"), size, || {
-                        icon.texture(&backend::resources(&tag))
+                        instances::icon_texture(icon, &backend::resources(&tag))
                     })
                 })
             }

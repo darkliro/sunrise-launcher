@@ -273,9 +273,9 @@ fn icons_are_a_texture_name_or_a_colour() {
         &root.join("assets/minecraft/textures/item/diamond.png"),
         "png",
     );
-    let diamond = Icon::Texture("diamond".into()).texture(&root).unwrap();
+    let diamond = icon_texture(&Icon::Texture("diamond".into()), &root).unwrap();
     assert!(diamond.ends_with("item/diamond.png"));
-    assert_eq!(Icon::Texture("stone".into()).texture(&root), None);
+    assert_eq!(icon_texture(&Icon::Texture("stone".into()), &root), None);
     fs::remove_dir_all(&root).unwrap();
 }
 
@@ -1330,7 +1330,7 @@ fn a_saved_texture_name_is_held_to_the_typed_ones_and_stays_inside_the_resources
     put(&root.join("secret.png"), "secret");
     for name in ["../../../../secret", "item/diamond", "/etc/passwd", ""] {
         assert_eq!(
-            Icon::Texture(name.into()).texture(&resources),
+            icon_texture(&Icon::Texture(name.into()), &resources),
             None,
             "{name}"
         );
@@ -1343,10 +1343,12 @@ fn a_saved_texture_name_is_held_to_the_typed_ones_and_stays_inside_the_resources
             resources.join("assets/minecraft/textures/block/linked.png"),
         )
         .unwrap();
-        assert_eq!(Icon::Texture("linked".into()).texture(&resources), None);
+        assert_eq!(
+            icon_texture(&Icon::Texture("linked".into()), &resources),
+            None
+        );
     }
-    assert!(Icon::Texture("diamond".into())
-        .texture(&resources)
+    assert!(icon_texture(&Icon::Texture("diamond".into()), &resources)
         .unwrap()
         .ends_with("item/diamond.png"));
     fs::remove_dir_all(&root).unwrap();

@@ -279,7 +279,7 @@ pub(super) fn instance(action: InstanceCmd, as_json: bool) -> Result<(), Error> 
                 println!(
                     "{}: {}",
                     i.name,
-                    l.summary().unwrap_or("nothing around the game".into())
+                    launch::summary(l).unwrap_or("nothing around the game".into())
                 );
                 println!("  pre-launch: {}", l.pre_launch);
                 println!("  wrapper:    {}", l.wrapper);
