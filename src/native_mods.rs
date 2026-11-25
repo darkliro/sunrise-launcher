@@ -695,9 +695,11 @@ pub fn base_for(current: Option<&str>, installed: &[String], update: bool) -> Op
         (true, Some(current)) => {
             let native = about(current);
             let base = native.as_ref().map_or(current, |build| build.base.as_str());
-            crate::instances::Channel::of_build(base)?
-                .newest_installed(installed)
-                .cloned()
+            crate::instances::newest_installed(
+                crate::instances::Channel::of_build(base)?,
+                installed,
+            )
+            .cloned()
         }
         (false, Some(v)) if installed.iter().any(|t| t == v) => Some(v.to_owned()),
         _ => newest_installed(installed).cloned(),
@@ -711,8 +713,7 @@ pub fn update_for(version: &str, installed: &[String]) -> Option<String> {
 }
 
 pub fn newer_than(base: &str, installed: &[String]) -> Option<String> {
-    crate::instances::Channel::of_build(base)?
-        .newest_installed(installed)
+    crate::instances::newest_installed(crate::instances::Channel::of_build(base)?, installed)
         .filter(|n| backend::compare_game_versions(n, base).is_gt())
         .cloned()
 }
@@ -2460,8 +2461,7 @@ fn plain_pin(
 ) -> Result<Option<String>, String> {
     let selected = installed.iter().find(|tag| Some(tag.as_str()) == selected);
     let target = |releases: &[backend::Release]| {
-        channel
-            .play_target(releases, installed, nightly, selected)
+        crate::instances::play_target(channel, releases, installed, nightly, selected)
             .map(String::as_str)
             == Some(plain)
     };

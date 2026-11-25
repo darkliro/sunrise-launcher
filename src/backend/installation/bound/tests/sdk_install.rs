@@ -67,7 +67,7 @@ fn a_newer_sdk_without_both_client_slices_does_not_win_update_or_first_play() {
     assert_eq!(releases[0].tag, NEWER);
     assert!(releases[0].asset.is_none());
     assert_eq!(sunrise_update(&releases, &[], Stable).unwrap().tag, OLDER);
-    let target = Stable.play_target(&releases, &[], None, None).unwrap();
+    let target = crate::instances::play_target(Stable, &releases, &[], None, None).unwrap();
     let first = crate::managed_play::FirstBuild::download(
         release_selection::by_tag(&releases, target).unwrap(),
     )

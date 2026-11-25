@@ -1,7 +1,11 @@
 //! A build installed from a draft release's files is named as a test build and chosen only by its
 //! exact tag: never as a profile's newest Dev build, and never as the base of an update.
 use std::fs;
-use sunrise_launcher::{backend, developer_install, instances::Channel, native_mods};
+use sunrise_launcher::{
+    backend, developer_install,
+    instances::{self, Channel},
+    native_mods,
+};
 
 #[test]
 fn a_test_build_is_marked_and_never_the_newest() {
@@ -31,7 +35,7 @@ fn a_test_build_is_marked_and_never_the_newest() {
     let installed = [draft.to_owned(), public.to_owned()];
 
     assert_eq!(
-        Channel::Dev.newest_installed(&installed),
+        instances::newest_installed(Channel::Dev, &installed),
         Some(&public.to_owned())
     );
     assert_eq!(

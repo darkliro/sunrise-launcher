@@ -1545,10 +1545,7 @@ fn same_day_rolling_nightly_remains_the_play_target_offline() {
     crate::nightly::record_current(&data.join("versions"), CURRENT).unwrap();
     let (installed, known) = backend::play_installations(Some(stable));
     let profile = selection().unwrap();
-    let would_play = profile
-        .channel
-        .play_target(&[], &installed, known.as_ref(), None)
-        .unwrap();
+    let would_play = play_target(profile.channel, &[], &installed, known.as_ref(), None).unwrap();
     assert_eq!(would_play, CURRENT, "offline GUI target");
     let tag = profile.resolve_version(None).unwrap();
     assert_eq!(tag, CURRENT, "offline CLI Play target");

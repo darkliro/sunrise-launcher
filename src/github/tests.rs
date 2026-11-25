@@ -578,9 +578,7 @@ fn a_stable_profile_finds_the_release_on_page_two_even_when_offline_afterwards()
         let releases = backend::game_releases(&list);
         assert_eq!(Stable.following(&releases), Stable);
         assert_eq!(
-            Stable
-                .play_target(&releases, &[], None, None)
-                .map(String::as_str),
+            crate::instances::play_target(Stable, &releases, &[], None, None).map(String::as_str),
             Some("26.3-0.1.0")
         );
     }

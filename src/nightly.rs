@@ -516,10 +516,14 @@ mod tests {
         );
         assert!(!versions.join(CURRENT_INSTALL).exists());
         let (installed, known) = backend::play_installations(Some(&old));
-        let online = profile
-            .channel
-            .play_target(&catalogue, &installed, known.as_ref(), Some(&old))
-            .unwrap();
+        let online = crate::instances::play_target(
+            profile.channel,
+            &catalogue,
+            &installed,
+            known.as_ref(),
+            Some(&old),
+        )
+        .unwrap();
         assert_eq!(online, &current);
         backend::note_play_catalogue(&catalogue).unwrap();
         assert_eq!(

@@ -11,7 +11,7 @@ impl Launcher {
             .map(|release| &release.tag)
             .or_else(|| match channel {
                 instances::Channel::Nightly => self.known_nightly.as_ref(),
-                _ => channel.newest_installed(&self.installed),
+                _ => instances::newest_installed(channel, &self.installed),
             })
     }
 

@@ -210,104 +210,51 @@ fn saved_profile<'de, D: serde::Deserializer<'de>>(
     Ok(serde_json::from_value(serde_json::Value::deserialize(deserializer)?).ok())
 }
 
-/// Which builds an instance's "latest" follows. Missing in a saved instance: Nightly, so nobody
-/// is moved to an older build.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Channel {
-    Stable,
-    #[default]
-    Nightly,
-    Dev,
+pub use sunrise_launcher_domain::Channel;
+
+/// The installed build on this channel, from the newest-first on-disk list. A test build
+/// from a draft's files is chosen only by its exact tag, never as the newest.
+pub fn newest_installed(channel: Channel, installed: &[String]) -> Option<&String> {
+    installed.iter().find(|tag| {
+        Channel::of_build(tag) == Some(channel) && !crate::draft_releases::is_test_build(tag)
+    })
 }
 
-impl Channel {
-    /// Publication channels, not a classifier for arbitrary tags the player has on disk.
-    pub fn of_release(release: &backend::Release) -> Option<Self> {
-        use sunrise_launcher_release_verify::{Channel as SignedChannel, NIGHTLY};
-        match release.nightly.as_deref() {
-            Some(NIGHTLY) => Some(Self::Nightly),
-            Some(tag)
-                if release.prerelease && SignedChannel::of(tag) == Some(SignedChannel::Dev) =>
-            {
-                Some(Self::Dev)
-            }
-            None if !release.prerelease && backend::is_game_tag(&release.tag) => Some(Self::Stable),
-            _ => None,
+/// The target of an unpinned profile: stay on an installed build until the player updates.
+/// A Stable install keeps working without the catalogue. Before there is one, the profile
+/// can play Nightly while there is no downloadable Stable, without changing its channel.
+///
+/// This reads the launcher's draft test-build mark through [`newest_installed`], so it stays
+/// here beside the other instance state rather than in the pure `launcher-domain` crate.
+pub fn play_target<'a>(
+    channel: Channel,
+    releases: &'a [backend::Release],
+    installed: &'a [String],
+    nightly: Option<&'a String>,
+    selected: Option<&'a String>,
+) -> Option<&'a String> {
+    let latest = channel.builds(releases).next().map(|release| &release.tag);
+    let have = match channel {
+        Channel::Stable | Channel::Dev => newest_installed(channel, installed),
+        Channel::Nightly => nightly,
+    };
+    match (have, latest) {
+        // The newest published build wins a same-day tie once it is actually on disk.
+        (Some(have), Some(latest))
+            if installed.contains(latest)
+                && backend::compare_game_versions(latest, have).is_ge() =>
+        {
+            Some(latest)
         }
-    }
-
-    /// Installed builds can be classified even if their releases have been pruned.
-    pub fn of_build(tag: &str) -> Option<Self> {
-        if crate::nightly::date_of(tag).is_some() {
-            Some(Self::Nightly)
-        } else if backend::dev_date(tag).is_some() {
-            Some(Self::Dev)
-        } else if backend::is_game_tag(tag) {
-            Some(Self::Stable)
-        } else {
-            None
+        (Some(have), _) => Some(have),
+        (None, Some(latest)) => Some(latest),
+        (None, None) if channel == Channel::Stable => {
+            play_target(Channel::Nightly, releases, installed, nightly, selected)
         }
-    }
-
-    /// The installed build on this channel, from the newest-first on-disk list. A test build
-    /// from a draft's files is chosen only by its exact tag, never as the newest.
-    pub fn newest_installed(self, installed: &[String]) -> Option<&String> {
-        installed.iter().find(|tag| {
-            Self::of_build(tag) == Some(self) && !crate::draft_releases::is_test_build(tag)
-        })
-    }
-
-    /// The downloadable releases on this channel, in catalogue order (newest first).
-    pub fn builds(self, releases: &[backend::Release]) -> impl Iterator<Item = &backend::Release> {
-        releases
-            .iter()
-            .filter(move |r| r.asset.is_some() && Self::of_release(r) == Some(self))
-    }
-
-    /// The target of an unpinned profile: stay on an installed build until the player updates.
-    /// A Stable install keeps working without the catalogue. Before there is one, the profile
-    /// can play Nightly while there is no downloadable Stable, without changing its channel.
-    pub fn play_target<'a>(
-        self,
-        releases: &'a [backend::Release],
-        installed: &'a [String],
-        nightly: Option<&'a String>,
-        selected: Option<&'a String>,
-    ) -> Option<&'a String> {
-        let latest = self.builds(releases).next().map(|release| &release.tag);
-        let have = match self {
-            Self::Stable | Self::Dev => self.newest_installed(installed),
-            Self::Nightly => nightly,
-        };
-        match (have, latest) {
-            // The newest published build wins a same-day tie once it is actually on disk.
-            (Some(have), Some(latest))
-                if installed.contains(latest)
-                    && backend::compare_game_versions(latest, have).is_ge() =>
-            {
-                Some(latest)
-            }
-            (Some(have), _) => Some(have),
-            (None, Some(latest)) => Some(latest),
-            (None, None) if self == Self::Stable => {
-                Self::Nightly.play_target(releases, installed, nightly, selected)
-            }
-            (None, None) if self == Self::Nightly => {
-                selected.filter(|tag| Self::of_build(tag).is_none())
-            }
-            (None, None) => None,
+        (None, None) if channel == Channel::Nightly => {
+            selected.filter(|tag| Channel::of_build(tag).is_none())
         }
-    }
-
-    /// What an unpinned profile follows for now. Without a Stable download it plays Nightly
-    /// without changing the saved channel; Stable takes over when one becomes available.
-    pub fn following(self, releases: &[backend::Release]) -> Self {
-        if self == Self::Stable && self.builds(releases).next().is_none() {
-            Self::Nightly
-        } else {
-            self
-        }
+        (None, None) => None,
     }
 }
 
@@ -621,9 +568,9 @@ impl Instance {
                 let selected = backend::Settings::load().selected;
                 let (installed, nightly) = backend::play_installations(selected.as_deref());
                 let selected = selected.filter(|tag| installed.contains(tag));
-                self.channel
-                    .play_target(
-                        &[],
+                play_target(
+                    self.channel,
+                    &[],
                         &installed,
                         nightly.as_ref(),
                         selected.as_ref().or(installed.first()),

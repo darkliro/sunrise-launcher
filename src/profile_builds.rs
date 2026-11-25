@@ -46,7 +46,7 @@ impl Launcher {
 
     /// Stable can follow an installed build even when its release feed is unavailable.
     pub(super) fn stable_available(&self) -> bool {
-        Channel::Stable.newest_installed(&self.installed).is_some()
+        instances::newest_installed(Channel::Stable, &self.installed).is_some()
             || Channel::Stable
                 .builds(self.game_releases())
                 .next()
@@ -149,7 +149,7 @@ fn profile_target<'a>(
     nightly: Option<&'a String>,
     launcher_version: Option<&'a String>,
 ) -> Option<&'a String> {
-    pin.or_else(|| channel.play_target(releases, installed, nightly, launcher_version))
+    pin.or_else(|| instances::play_target(channel, releases, installed, nightly, launcher_version))
 }
 
 /// The channel's published builds, plus installed ones. Nightly also offers legacy and imported
@@ -243,9 +243,7 @@ mod tests {
             .map(|release| release.tag.clone())
         };
         let cache_target = |installed: &[String]| {
-            Channel::Stable
-                .play_target(&releases, installed, None, None)
-                .cloned()
+            instances::play_target(Channel::Stable, &releases, installed, None, None).cloned()
         };
         assert_eq!(cache_target(&before).as_deref(), Some(old));
         assert_eq!(offer(&older).as_deref(), Some(new));

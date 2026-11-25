@@ -430,7 +430,7 @@ pub fn sunrise_update<'a>(
 ) -> Option<&'a Release> {
     let newest = channel.builds(releases).next()?;
     let newer = !installed.contains(&newest.tag)
-        && channel.newest_installed(installed).is_none_or(|tag| {
+        && crate::instances::newest_installed(channel, installed).is_none_or(|tag| {
             let order = compare_game_versions(&newest.tag, tag);
             match channel {
                 crate::instances::Channel::Stable => order.is_gt(),

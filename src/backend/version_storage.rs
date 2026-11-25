@@ -100,9 +100,13 @@ fn profile_user<'a>(
             .version
             .as_ref()
             .or_else(|| {
-                profile
-                    .channel
-                    .play_target(releases, installed, nightly, selected)
+                crate::instances::play_target(
+                    profile.channel,
+                    releases,
+                    installed,
+                    nightly,
+                    selected,
+                )
             })
             .is_some_and(|wanted| wanted.eq_ignore_ascii_case(tag))
     })

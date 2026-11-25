@@ -110,7 +110,7 @@ impl Launcher {
 }
 
 /// The channel an unpinned profile plays now: a Stable profile plays Nightly until Stable has a
-/// build ([`instances::Channel::play_target`]), and the picker marks what plays.
+/// build ([`instances::play_target`]), and the picker marks what plays.
 pub(super) fn following_now(
     saved: instances::Channel,
     waits_for_stable: bool,
