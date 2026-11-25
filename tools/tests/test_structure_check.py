@@ -207,6 +207,18 @@ class StructureCheck(unittest.TestCase):
         self.assertEqual((counts["gpui_files"], counts["lib_gpui_files"]), (2, 1))
         self.assertIn("files using gpui that lib.rs reaches", out)
 
+    def test_a_ui_split_adding_gpui_files_is_reported_not_ratcheted(self):
+        head = self.repo.commit({
+            "src/main.rs": "mod settings;\nfn main() {}\n",
+            "src/settings/page_a.rs": "use gpui::Render;\n",
+            "src/settings/page_b.rs": "use gpui::App;\n",
+        })
+        code, out = self.run_check(head)
+        self.assertEqual(code, 0)
+        counts = check.measure(head)
+        self.assertEqual((counts["gpui_files"], counts["lib_gpui_files"]), (2, 0))
+        self.assertIn("reported, not a ratchet", out)
+
     def test_a_test_only_fn_in_the_middle_hides_only_itself(self):
         handler = "fn handler() -> Result<(), String> { Ok(()) }\n"
         head = self.repo.commit({

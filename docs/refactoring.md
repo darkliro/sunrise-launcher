@@ -273,8 +273,10 @@ commit it's based on, and fails if any of these counts goes **up**:
 - the same two counts for the UI's own root, `main.rs`. They are separate from `lib.rs` so a move
   between the window's modules cannot hide in the library's graph; V3 measures its decoupling
   against them.
-- non-test files that use `gpui`, and, separately, the ones `lib.rs` reaches, which stay at zero
-  (§4). A comment that mentions `gpui` does not count.
+- non-test files that `lib.rs` reaches and that use `gpui`, which stay at zero (§4). A comment
+  that mentions `gpui` does not count. The total count of non-test files using `gpui` is printed
+  for information but not enforced: a verbatim split of a UI file adds files that mention
+  `gpui`, so that row follows the number of UI files, not the boundary.
 - `#[path` attributes
 - `#[allow(dead_code)]` and `#[allow(clippy::…)]`
 - `.unwrap()` and `Result<_, String>` in non-test code. The check's non-test code is stricter than
